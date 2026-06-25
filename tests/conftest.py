@@ -18,7 +18,7 @@ from fs_explorer.models import StopAction, Action
 
 class MockModels:
     """Mock implementation of the GenAI models interface."""
-    
+
     async def generate_content(self, *args, **kwargs) -> GenerateContentResponse:
         """Return a mock response with a stop action."""
         return GenerateContentResponse(
@@ -49,7 +49,7 @@ class MockModels:
 
 class MockAio:
     """Mock implementation of the async GenAI interface."""
-    
+
     @property
     def models(self) -> MockModels:
         """Return mock models interface."""
@@ -59,10 +59,10 @@ class MockAio:
 class MockGenAIClient:
     """
     Mock implementation of the Google GenAI client.
-    
+
     Provides predictable responses for testing without API calls.
     """
-    
+
     def __init__(self, api_key: str, http_options: HttpOptions) -> None:
         """Initialize mock client (ignores parameters)."""
         pass
