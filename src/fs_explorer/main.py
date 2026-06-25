@@ -58,10 +58,10 @@ def format_tool_panel(event: ToolCallEvent, step_number: int) -> Panel:
     icon = TOOL_ICONS.get(tool_name, "🔧")
     phase_info = PHASE_DESCRIPTIONS.get(tool_name, ("Action", "Tool Call", "yellow"))
     phase_label, phase_desc, color = phase_info
-    
+
     # Build the content
     lines = []
-    
+
     # Tool and target info
     if "directory" in event.tool_input:
         target = event.tool_input["directory"]
@@ -69,27 +69,28 @@ def format_tool_panel(event: ToolCallEvent, step_number: int) -> Panel:
     elif "file_path" in event.tool_input:
         target = event.tool_input["file_path"]
         lines.append(f"**Target File:** `{target}`")
-    
+
     # Additional parameters
-    other_params = {k: v for k, v in event.tool_input.items() 
-                    if k not in ("directory", "file_path")}
+    other_params = {
+        k: v for k, v in event.tool_input.items() if k not in ("directory", "file_path")
+    }
     if other_params:
         lines.append(f"**Parameters:** `{json.dumps(other_params)}`")
-    
+
     lines.append("")
     lines.append("---")
     lines.append("")
-    
+
     # Reasoning (this is the key part for visibility)
     lines.append("**Agent's Reasoning:**")
     lines.append("")
     lines.append(event.reason)
-    
+
     content = "\n".join(lines)
-    
+
     # Create title with step number and phase
     title = f"{icon} Step {step_number}: {tool_name} [{phase_label}: {phase_desc}]"
-    
+
     return Panel(
         Markdown(content),
         title=title,
@@ -124,24 +125,31 @@ def print_workflow_header(console: Console, task: str) -> None:
     header = Table.grid(padding=(0, 2))
     header.add_column(style="bold cyan", justify="right")
     header.add_column()
-    
+
     header.add_row("🤖 FsExplorer Agent", "")
     header.add_row("📋 Task:", task)
     header.add_row("🕐 Started:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    
-    console.print(Panel(header, border_style="bold blue", title="Starting Exploration", title_align="left"))
+
+    console.print(
+        Panel(
+            header,
+            border_style="bold blue",
+            title="Starting Exploration",
+            title_align="left",
+        )
+    )
     console.print()
 
 
 def print_workflow_summary(console: Console, agent, step_count: int) -> None:
     """Print a summary of the workflow execution."""
     usage = agent.token_usage
-    
+
     # Create summary table
     summary = Table.grid(padding=(0, 2))
     summary.add_column(style="bold", justify="right")
     summary.add_column()
-    
+
     summary.add_row("Total Steps:", str(step_count))
     summary.add_row("API Calls:", str(usage.api_calls))
     summary.add_row("Documents Scanned:", str(usage.documents_scanned))
@@ -151,99 +159,105 @@ def print_workflow_summary(console: Console, agent, step_count: int) -> None:
     summary.add_row("Completion Tokens:", f"{usage.completion_tokens:,}")
     summary.add_row("Total Tokens:", f"{usage.total_tokens:,}")
     summary.add_row("", "")
-    
+
     # Cost calculation
     input_cost, output_cost, total_cost = usage._calculate_cost()
     summary.add_row("Est. Input Cost:", f"${input_cost:.4f}")
     summary.add_row("Est. Output Cost:", f"${output_cost:.4f}")
     summary.add_row("Est. Total Cost:", f"${total_cost:.4f}")
-    
+
     console.print()
-    console.print(Panel(
-        summary,
-        title="📊 Workflow Summary",
-        title_align="left",
-        border_style="bold blue",
-    ))
+    console.print(
+        Panel(
+            summary,
+            title="📊 Workflow Summary",
+            title_align="left",
+            border_style="bold blue",
+        )
+    )
 
 
 async def run_workflow(task: str) -> None:
     """
     Execute the exploration workflow with detailed step-by-step output.
-    
+
     Args:
         task: The user's task/question to answer.
     """
     console = Console()
-    
+
     # Reset agent for fresh state
     reset_agent()
-    
+
     # Print header
     print_workflow_header(console, task)
-    
+
     step_number = 0
     handler = workflow.run(start_event=InputEvent(task=task))
-    
+
     with console.status(status="[bold cyan]🔄 Analyzing task...") as status:
         async for event in handler.stream_events():
             if isinstance(event, ToolCallEvent):
                 step_number += 1
-                
+
                 # Update status based on tool
                 icon = TOOL_ICONS.get(event.tool_name, "🔧")
                 if event.tool_name == "scan_folder":
-                    status.update(f"[bold cyan]{icon} Scanning documents in parallel...")
+                    status.update(
+                        f"[bold cyan]{icon} Scanning documents in parallel..."
+                    )
                 elif event.tool_name == "parse_file":
                     status.update(f"[bold green]{icon} Reading document in detail...")
                 elif event.tool_name == "preview_file":
                     status.update(f"[bold cyan]{icon} Quick preview of document...")
                 else:
                     status.update(f"[bold yellow]{icon} Executing {event.tool_name}...")
-                
+
                 # Print the detailed panel
                 panel = format_tool_panel(event, step_number)
                 console.print(panel)
                 console.print()
-                
+
                 status.update("[bold cyan]🔄 Processing results...")
-                
+
             elif isinstance(event, GoDeeperEvent):
                 step_number += 1
                 panel = format_navigation_panel(event, step_number)
                 console.print(panel)
                 console.print()
                 status.update("[bold cyan]🔄 Exploring directory...")
-                
+
             elif isinstance(event, AskHumanEvent):
                 status.stop()
                 console.print()
-                
+
                 # Create a nice prompt panel
                 question_panel = Panel(
-                    Markdown(f"**Question:** {event.question}\n\n**Why I'm asking:** {event.reason}"),
+                    Markdown(
+                        f"**Question:** {event.question}\n\n**Why I'm asking:** {event.reason}"
+                    ),
                     title="❓ Human Input Required",
                     title_align="left",
                     border_style="bold red",
                 )
                 console.print(question_panel)
-                
+
                 answer = console.input("[bold cyan]Your answer:[/] ")
                 while answer.strip() == "":
                     console.print("[bold red]Please provide an answer.[/]")
                     answer = console.input("[bold cyan]Your answer:[/] ")
-                
+
                 handler.ctx.send_event(HumanAnswerEvent(response=answer.strip()))
                 console.print()
                 status.start()
                 status.update("[bold cyan]🔄 Processing your response...")
-        
+
         # Get final result
         result = await handler
         status.update("[bold green]✨ Preparing final answer...")
         await asyncio.sleep(0.1)
         status.stop()
-    
+
     # Print final result with prominent styling
     console.print()
     if result.final_result:
@@ -263,7 +277,7 @@ async def run_workflow(task: str) -> None:
             border_style="bold red",
         )
         console.print(error_panel)
-    
+
     # Print workflow summary
     agent = get_agent()
     print_workflow_summary(console, agent, step_number)
@@ -282,7 +296,7 @@ def main(
 ) -> None:
     """
     Explore the filesystem to answer questions about documents.
-    
+
     The agent will scan, analyze, and parse relevant documents to provide
     comprehensive answers with source citations.
     """

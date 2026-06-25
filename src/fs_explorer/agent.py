@@ -43,28 +43,28 @@ GEMINI_FLASH_OUTPUT_COST_PER_MILLION = 0.30
 class TokenUsage:
     """
     Track token usage and costs across the session.
-    
+
     Maintains running totals of API calls, token counts, and provides
     cost estimates based on Gemini Flash pricing.
     """
-    
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
     api_calls: int = 0
-    
+
     # Track content sizes
     tool_result_chars: int = 0
     documents_parsed: int = 0
     documents_scanned: int = 0
-    
+
     def add_api_call(self, prompt_tokens: int, completion_tokens: int) -> None:
         """Record token usage from an API call."""
         self.prompt_tokens += prompt_tokens
         self.completion_tokens += completion_tokens
         self.total_tokens += prompt_tokens + completion_tokens
         self.api_calls += 1
-    
+
     def add_tool_result(self, result: str, tool_name: str) -> None:
         """Record metrics from a tool execution."""
         self.tool_result_chars += len(result)
@@ -75,17 +75,21 @@ class TokenUsage:
             self.documents_scanned += result.count("│ [")
         elif tool_name == "preview_file":
             self.documents_parsed += 1
-    
+
     def _calculate_cost(self) -> tuple[float, float, float]:
         """Calculate estimated costs based on Gemini Flash pricing."""
-        input_cost = (self.prompt_tokens / 1_000_000) * GEMINI_FLASH_INPUT_COST_PER_MILLION
-        output_cost = (self.completion_tokens / 1_000_000) * GEMINI_FLASH_OUTPUT_COST_PER_MILLION
+        input_cost = (
+            self.prompt_tokens / 1_000_000
+        ) * GEMINI_FLASH_INPUT_COST_PER_MILLION
+        output_cost = (
+            self.completion_tokens / 1_000_000
+        ) * GEMINI_FLASH_OUTPUT_COST_PER_MILLION
         return input_cost, output_cost, input_cost + output_cost
-    
+
     def summary(self) -> str:
         """Generate a formatted summary of token usage and costs."""
         input_cost, output_cost, total_cost = self._calculate_cost()
-        
+
         return f"""
 ═══════════════════════════════════════════════════════════════
                       TOKEN USAGE SUMMARY
@@ -237,25 +241,26 @@ User asks: "What is the purchase price?"
 # Agent Implementation
 # =============================================================================
 
+
 class FsExplorerAgent:
     """
     AI agent for exploring filesystems using Google Gemini.
-    
+
     The agent maintains a conversation history with the LLM and uses
     structured JSON output to make decisions about which actions to take.
-    
+
     Attributes:
         token_usage: Tracks API call statistics and costs.
     """
-    
+
     def __init__(self, api_key: str | None = None) -> None:
         """
         Initialize the agent with Google API credentials.
-        
+
         Args:
             api_key: Google API key. If not provided, reads from
                      GOOGLE_API_KEY environment variable.
-        
+
         Raises:
             ValueError: If no API key is available.
         """
@@ -266,7 +271,7 @@ class FsExplorerAgent:
                 "GOOGLE_API_KEY not found within the current environment: "
                 "please export it or provide it to the class constructor."
             )
-        
+
         self._client = GenAIClient(
             api_key=api_key,
             http_options=HttpOptions(api_version="v1beta"),
@@ -277,7 +282,7 @@ class FsExplorerAgent:
     def configure_task(self, task: str) -> None:
         """
         Add a task message to the conversation history.
-        
+
         Args:
             task: The task or context to add to the conversation.
         """
@@ -288,10 +293,10 @@ class FsExplorerAgent:
     async def take_action(self) -> tuple[Action, ActionType] | None:
         """
         Request the next action from the AI model.
-        
+
         Sends the current conversation history to Gemini and receives
         a structured JSON response indicating the next action to take.
-        
+
         Returns:
             A tuple of (Action, ActionType) if successful, None otherwise.
         """
@@ -304,14 +309,14 @@ class FsExplorerAgent:
                 "response_schema": Action,
             },
         )
-        
+
         # Track token usage from response metadata
         if response.usage_metadata:
             self.token_usage.add_api_call(
                 prompt_tokens=response.usage_metadata.prompt_token_count or 0,
                 completion_tokens=response.usage_metadata.candidates_token_count or 0,
             )
-        
+
         if response.candidates is not None:
             if response.candidates[0].content is not None:
                 self._chat_history.append(response.candidates[0].content)
@@ -324,13 +329,13 @@ class FsExplorerAgent:
                         tool_input=toolcall.to_fn_args(),
                     )
                 return action, action.to_action_type()
-        
+
         return None
 
     def call_tool(self, tool_name: Tools, tool_input: dict[str, Any]) -> None:
         """
         Execute a tool and add the result to the conversation history.
-        
+
         Args:
             tool_name: Name of the tool to execute.
             tool_input: Dictionary of arguments to pass to the tool.
@@ -342,14 +347,16 @@ class FsExplorerAgent:
                 f"An error occurred while calling tool {tool_name} "
                 f"with {tool_input}: {e}"
             )
-        
+
         # Track tool result sizes
         self.token_usage.add_tool_result(result, tool_name)
-        
+
         self._chat_history.append(
             Content(
                 role="user",
-                parts=[Part.from_text(text=f"Tool result for {tool_name}:\n\n{result}")],
+                parts=[
+                    Part.from_text(text=f"Tool result for {tool_name}:\n\n{result}")
+                ],
             )
         )
 

@@ -42,27 +42,27 @@ def reset_agent() -> None:
 
 class WorkflowState(BaseModel):
     """State maintained throughout the workflow execution."""
-    
+
     initial_task: str = ""
     current_directory: str = "."
 
 
 class InputEvent(StartEvent):
     """Initial event containing the user's task."""
-    
+
     task: str
 
 
 class GoDeeperEvent(Event):
     """Event triggered when navigating into a subdirectory."""
-    
+
     directory: str
     reason: str
 
 
 class ToolCallEvent(Event):
     """Event triggered when executing a tool."""
-    
+
     tool_name: str
     tool_input: dict[str, Any]
     reason: str
@@ -70,20 +70,20 @@ class ToolCallEvent(Event):
 
 class AskHumanEvent(InputRequiredEvent):
     """Event triggered when human input is required."""
-    
+
     question: str
     reason: str
 
 
 class HumanAnswerEvent(HumanResponseEvent):
     """Event containing the human's response."""
-    
+
     response: str
 
 
 class ExplorationEndEvent(StopEvent):
     """Event signaling the end of exploration."""
-    
+
     final_result: str | None = None
     error: str | None = None
 
@@ -99,15 +99,15 @@ def _handle_action_result(
 ) -> WorkflowEvent:
     """
     Convert an action result into the appropriate workflow event.
-    
+
     This helper extracts the common logic for handling agent action results,
     reducing code duplication across workflow steps.
-    
+
     Args:
         action: The action returned by the agent
         action_type: The type of action ("godeeper", "toolcall", "askhuman", "stop")
         ctx: The workflow context for state updates and event streaming
-    
+
     Returns:
         The appropriate workflow event based on the action type
     """
@@ -116,7 +116,7 @@ def _handle_action_result(
         event = GoDeeperEvent(directory=godeeper.directory, reason=action.reason)
         ctx.write_event_to_stream(event)
         return event
-    
+
     elif action_type == "toolcall":
         toolcall = cast(ToolCallAction, action.action)
         event = ToolCallEvent(
@@ -126,12 +126,12 @@ def _handle_action_result(
         )
         ctx.write_event_to_stream(event)
         return event
-    
+
     elif action_type == "askhuman":
         askhuman = cast(AskHumanAction, action.action)
         # InputRequiredEvent is written to the stream by default
         return AskHumanEvent(question=askhuman.question, reason=action.reason)
-    
+
     else:  # stop
         stopaction = cast(StopAction, action.action)
         return ExplorationEndEvent(final_result=stopaction.final_result)
@@ -144,42 +144,42 @@ async def _process_agent_action(
 ) -> WorkflowEvent:
     """
     Process the agent's next action and return the appropriate event.
-    
+
     Args:
         agent: The agent instance
         ctx: The workflow context
         update_directory: Whether to update the current directory on godeeper action
-    
+
     Returns:
         The appropriate workflow event
     """
     result = await agent.take_action()
-    
+
     if result is None:
         return ExplorationEndEvent(error="Could not produce action to take")
-    
+
     action, action_type = result
-    
+
     # Update directory state if needed for godeeper actions
     if update_directory and action_type == "godeeper":
         godeeper = cast(GoDeeperAction, action.action)
         async with ctx.store.edit_state() as state:
             state.current_directory = godeeper.directory
-    
+
     return _handle_action_result(action, action_type, ctx)
 
 
 class FsExplorerWorkflow(Workflow):
     """
     Event-driven workflow for filesystem exploration.
-    
+
     Coordinates the agent's actions through a series of steps:
     - start_exploration: Initial task processing
     - go_deeper_action: Directory navigation
     - tool_call_action: Tool execution
     - receive_human_answer: Human interaction handling
     """
-    
+
     @step
     async def start_exploration(
         self,
@@ -190,7 +190,7 @@ class FsExplorerWorkflow(Workflow):
         """Initialize exploration with the user's task."""
         async with ctx.store.edit_state() as state:
             state.initial_task = ev.task
-        
+
         dirdescription = describe_dir_content(".")
         agent.configure_task(
             f"Given that the current directory ('.') looks like this:\n\n"
@@ -198,7 +198,7 @@ class FsExplorerWorkflow(Workflow):
             f"And that the user is giving you this task: '{ev.task}', "
             f"what action should you take first?"
         )
-        
+
         return await _process_agent_action(agent, ctx, update_directory=True)
 
     @step
@@ -211,14 +211,14 @@ class FsExplorerWorkflow(Workflow):
         """Handle navigation into a subdirectory."""
         state = await ctx.store.get_state()
         dirdescription = describe_dir_content(state.current_directory)
-        
+
         agent.configure_task(
             f"Given that the current directory ('{state.current_directory}') "
             f"looks like this:\n\n```text\n{dirdescription}\n```\n\n"
             f"And that the user is giving you this task: '{state.initial_task}', "
             f"what action should you take next?"
         )
-        
+
         return await _process_agent_action(agent, ctx, update_directory=True)
 
     @step
@@ -230,13 +230,13 @@ class FsExplorerWorkflow(Workflow):
     ) -> WorkflowEvent:
         """Process the human's response to a question."""
         state = await ctx.store.get_state()
-        
+
         agent.configure_task(
             f"Human response to your question: {ev.response}\n\n"
             f"Based on it, proceed with your exploration based on the "
             f"original task: {state.initial_task}"
         )
-        
+
         return await _process_agent_action(agent, ctx, update_directory=True)
 
     @step
@@ -251,7 +251,7 @@ class FsExplorerWorkflow(Workflow):
             "Given the result from the tool call you just performed, "
             "what action should you take next?"
         )
-        
+
         return await _process_agent_action(agent, ctx, update_directory=True)
 
 
