@@ -5,15 +5,11 @@ Provides a WebSocket endpoint for real-time workflow streaming
 and serves the single-page HTML interface.
 """
 
-import json
-import asyncio
 import os
 from pathlib import Path
-from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from .workflow import (
@@ -23,7 +19,6 @@ from .workflow import (
     GoDeeperEvent,
     AskHumanEvent,
     HumanAnswerEvent,
-    ExplorationEndEvent,
     get_agent,
     reset_agent,
 )

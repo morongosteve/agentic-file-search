@@ -19,8 +19,8 @@ _env_path = Path(__file__).parent.parent.parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path)
 
-from .models import Action, ActionType, ToolCallAction, Tools
-from .fs import (
+from .models import Action, ActionType, ToolCallAction, Tools  # noqa: E402
+from .fs import (  # noqa: E402
     read_file,
     grep_file_content,
     glob_paths,
