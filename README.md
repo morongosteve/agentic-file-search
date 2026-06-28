@@ -20,7 +20,7 @@ This system uses a **three-phase strategy**:
 
 - 🔍 **6 Tools**: `scan_folder`, `preview_file`, `parse_file`, `read`, `grep`, `glob`
 - 📄 **Document Support**: PDF, DOCX, PPTX, XLSX, HTML, Markdown (via Docling)
-- 🤖 **Powered by**: Google Gemini 3 Flash with structured JSON output
+- 🤖 **Powered by**: Google Gemini 3 Flash (`gemini-3-flash-preview`) with structured JSON output
 - 💰 **Cost Efficient**: ~$0.001 per query with token tracking
 - 🌐 **Web UI**: Real-time WebSocket streaming interface
 - 📊 **Citations**: Answers include source references
@@ -64,7 +64,10 @@ uv run explore --task "Look in data/large_acquisition/. What are all the financi
 ### Web UI
 
 ```bash
-# Start the server
+# Start the server (uses the explore-ui console script)
+uv run explore-ui
+
+# Or run uvicorn directly
 uv run uvicorn fs_explorer.server:app --host 127.0.0.1 --port 8000
 
 # Open http://127.0.0.1:8000 in your browser
